@@ -1,6 +1,6 @@
 
 import type { Request, Response } from "express";
-import app from "../server.js";
+import app from "../server.ts";
 
 export default async function handler(
   req: Request,
