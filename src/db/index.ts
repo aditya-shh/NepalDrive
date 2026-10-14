@@ -22,7 +22,7 @@ const isPostgres = Boolean(connectionString);
 
 if (isProduction && !isPostgres) {
   console.error('❌ [CRITICAL PRODUCTION ERROR] No PostgreSQL connection string found in environment variables (DATABASE_URL / POSTGRES_URL).');
-  console.error('👉 In-memory mock database is strictly prohibited in production. Please configure DATABASE_URL in Vercel Project Settings > Environment Variables.');
+  console.error('👉 In-memory mock database is strictly prohibited in production. Please configure DATABASE_URL or POSTGRES_URL in Vercel Project Settings > Environment Variables.');
 }
 
 // In-Memory state for fallback mock database (development only)
@@ -54,7 +54,7 @@ const mockState: {
   rental_agreement_acceptances: [],
 };
 
-let pool: pg.Pool | null = null;
+export let pool: pg.Pool | null = null;
 
 if (isPostgres) {
   try {
@@ -1145,10 +1145,134 @@ export async function initializeDatabase() {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS driving_license VARCHAR(255);
         ALTER TABLE users ADD COLUMN IF NOT EXISTS citizenship_no VARCHAR(255);
         ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_index INTEGER DEFAULT 0;
+
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS brand VARCHAR(100);
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS model VARCHAR(100);
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS year INTEGER;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS type VARCHAR(50);
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS price_per_day NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS security_deposit NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS seats INTEGER DEFAULT 4;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS transmission VARCHAR(50) DEFAULT 'Manual';
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS fuel_type VARCHAR(50) DEFAULT 'Petrol';
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS is_electric BOOLEAN DEFAULT FALSE;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS self_drive BOOLEAN DEFAULT TRUE;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS with_driver BOOLEAN DEFAULT TRUE;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS is_popular BOOLEAN DEFAULT FALSE;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS availability_status VARCHAR(50) DEFAULT 'Available';
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS rating NUMERIC(3, 2) DEFAULT 5.0;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS review_count INTEGER DEFAULT 0;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT '/assets/images/fortuner_suv_1791105671393.jpg';
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS image_gallery TEXT[] DEFAULT ARRAY[]::TEXT[];
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS pickup_locations TEXT[] DEFAULT ARRAY['Kathmandu']::TEXT[];
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS slug VARCHAR(255);
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE RESTRICT;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS start_date DATE;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_date DATE;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS pickup_location VARCHAR(255);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS dropoff_location VARCHAR(255);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS self_drive BOOLEAN DEFAULT TRUE;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS has_driver BOOLEAN DEFAULT FALSE;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS base_amount NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS driver_amount NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS total_amount NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_method VARCHAR(100);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'Pending';
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending';
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS driving_license VARCHAR(255);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS citizenship_no VARCHAR(255);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS destination_location VARCHAR(255);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_receipt_url TEXT;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_transaction_id VARCHAR(255);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_notes TEXT;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE reviews ADD COLUMN IF NOT EXISTS booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL;
+        ALTER TABLE reviews ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+        ALTER TABLE reviews ADD COLUMN IF NOT EXISTS vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE CASCADE;
+        ALTER TABLE reviews ADD COLUMN IF NOT EXISTS rating INTEGER DEFAULT 5;
+        ALTER TABLE reviews ADD COLUMN IF NOT EXISTS comment TEXT DEFAULT '';
+        ALTER TABLE reviews ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor_id INTEGER;
+        ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor_email VARCHAR(255);
+        ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS action VARCHAR(255);
+        ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS resource VARCHAR(255);
+        ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details TEXT;
+        ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE favorites ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+        ALTER TABLE favorites ADD COLUMN IF NOT EXISTS vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE CASCADE;
+        ALTER TABLE favorites ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS subject VARCHAR(255);
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS message TEXT;
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'NEW';
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS ip_address VARCHAR(100);
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS admin_notes TEXT;
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
         ALTER TABLE locations ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
         ALTER TABLE locations ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
         ALTER TABLE locations ADD COLUMN IF NOT EXISTS operating_hours VARCHAR(100);
         ALTER TABLE locations ADD COLUMN IF NOT EXISTS description TEXT;
+        ALTER TABLE locations ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE locations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS document_type VARCHAR(50);
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS storage_key VARCHAR(255);
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS original_filename VARCHAR(255);
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100);
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS file_size INTEGER DEFAULT 0;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS verification_status VARCHAR(50) DEFAULT 'Pending';
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS verified_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS retention_until TIMESTAMP;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+
+        ALTER TABLE document_verification_history ADD COLUMN IF NOT EXISTS document_id INTEGER REFERENCES user_documents(id) ON DELETE CASCADE;
+        ALTER TABLE document_verification_history ADD COLUMN IF NOT EXISTS reviewer_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+        ALTER TABLE document_verification_history ADD COLUMN IF NOT EXISTS action VARCHAR(50);
+        ALTER TABLE document_verification_history ADD COLUMN IF NOT EXISTS reason TEXT;
+        ALTER TABLE document_verification_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS document_type VARCHAR(50);
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS handover_required BOOLEAN DEFAULT FALSE;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS handed_over_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS received_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS handover_at TIMESTAMP;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS returned_at TIMESTAMP;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS renter_acknowledgment BOOLEAN DEFAULT FALSE;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS staff_acknowledgment BOOLEAN DEFAULT FALSE;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS notes TEXT;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE;
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS agreement_version VARCHAR(50) DEFAULT 'v1.0-nepal-kyc';
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS accepted_ip VARCHAR(100);
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS confirm_identity_ownership BOOLEAN DEFAULT TRUE;
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS confirm_original_retention BOOLEAN DEFAULT TRUE;
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS confirm_rental_terms BOOLEAN DEFAULT TRUE;
       `;
 
       await pool.query(ddlStatements);

@@ -353,6 +353,52 @@ var require_main = __commonJS({
   }
 });
 
+// node_modules/dotenv/lib/env-options.js
+var require_env_options = __commonJS({
+  "node_modules/dotenv/lib/env-options.js"(exports, module) {
+    var options = {};
+    if (process.env.DOTENV_CONFIG_ENCODING != null) {
+      options.encoding = process.env.DOTENV_CONFIG_ENCODING;
+    }
+    if (process.env.DOTENV_CONFIG_PATH != null) {
+      options.path = process.env.DOTENV_CONFIG_PATH;
+    }
+    if (process.env.DOTENV_CONFIG_QUIET != null) {
+      options.quiet = process.env.DOTENV_CONFIG_QUIET;
+    }
+    if (process.env.DOTENV_CONFIG_DEBUG != null) {
+      options.debug = process.env.DOTENV_CONFIG_DEBUG;
+    }
+    if (process.env.DOTENV_CONFIG_OVERRIDE != null) {
+      options.override = process.env.DOTENV_CONFIG_OVERRIDE;
+    }
+    if (process.env.DOTENV_CONFIG_DOTENV_KEY != null) {
+      options.DOTENV_KEY = process.env.DOTENV_CONFIG_DOTENV_KEY;
+    }
+    module.exports = options;
+  }
+});
+
+// node_modules/dotenv/lib/cli-options.js
+var require_cli_options = __commonJS({
+  "node_modules/dotenv/lib/cli-options.js"(exports, module) {
+    var re = /^dotenv_config_(encoding|path|quiet|debug|override|DOTENV_KEY)=(.+)$/;
+    module.exports = function optionMatcher(args) {
+      const options = args.reduce(function(acc, cur) {
+        const matches = cur.match(re);
+        if (matches) {
+          acc[matches[1]] = matches[2];
+        }
+        return acc;
+      }, {});
+      if (!("quiet" in options)) {
+        options.quiet = "true";
+      }
+      return options;
+    };
+  }
+});
+
 // server.ts
 import express from "express";
 
@@ -1578,6 +1624,7 @@ __export(util_exports, {
   required: () => required,
   safeExtend: () => safeExtend,
   shallowClone: () => shallowClone,
+  sizeCaps: () => sizeCaps,
   slugify: () => slugify,
   stringifyPrimitive: () => stringifyPrimitive,
   toZod: () => toZod,
@@ -2096,6 +2143,18 @@ function prefixIssues(path2, issues) {
 }
 function unwrapMessage(message) {
   return typeof message === "string" ? message : message?.message;
+}
+function sizeCaps(defChecks) {
+  const caps = [];
+  for (const ch of defChecks ?? []) {
+    const d = ch._zod.def;
+    if (!/_(length|size)$|_equals$/.test(d.check))
+      break;
+    const max = d.maximum ?? d.length ?? d.size;
+    if (max >= 0)
+      caps.push([max, ch]);
+  }
+  return caps;
 }
 function attachSchema(issues, start, inst) {
   var _a3;
@@ -3517,7 +3576,7 @@ ${content.join("\n")}
 var version = {
   major: 4,
   minor: 6,
-  patch: 5
+  patch: 7
 };
 
 // node_modules/zod/v4/core/schemas.js
@@ -4273,6 +4332,31 @@ var $ZodDate = /* @__PURE__ */ $constructor("$ZodDate", (inst, def) => {
     return payload;
   };
 });
+function capSize(inst, size) {
+  const caps = sizeCaps(inst._zod.def.checks);
+  if (!caps.length)
+    return;
+  const cap = Math.min(...caps.map((c) => c[0]));
+  const parse3 = inst._zod.parse;
+  inst._zod.parse = (payload, ctx) => {
+    const n = size(payload.value);
+    if (n > cap && !ctx?.skipChecks && ctx?.direction !== "backward") {
+      for (const [max, ch] of sizeCaps(inst._zod.def.checks)) {
+        if (n > max && ch._zod.def.when(payload)) {
+          const start = payload.issues.length;
+          ch._zod.check(payload);
+          payload.issues[start].continue = false;
+          attachSchema(payload.issues, start, inst);
+          return payload;
+        }
+      }
+    }
+    return parse3(payload, ctx);
+  };
+}
+var arraySize = (input2) => Array.isArray(input2) ? input2.length : -1;
+var mapSize = (input2) => input2 instanceof Map ? input2.size : -1;
+var setSize = (input2) => input2 instanceof Set ? input2.size : -1;
 function handleArrayResult(result, final, index) {
   if (result.issues.length) {
     final.issues.push(...prefixIssues(index, result.issues));
@@ -4316,6 +4400,7 @@ var $ZodArray = /* @__PURE__ */ $constructor("$ZodArray", (inst, def) => {
     }
     return payload;
   };
+  capSize(inst, arraySize);
 });
 function handlePropertyResult(result, final, key, input2, optin, optout) {
   const isPresent = key in input2;
@@ -5272,6 +5357,7 @@ var $ZodMap = /* @__PURE__ */ $constructor("$ZodMap", (inst, def) => {
       return Promise.all(proms).then(() => payload);
     return payload;
   };
+  capSize(inst, mapSize);
 });
 function handleMapResult(keyResult, valueResult, final, key, input2, inst, ctx) {
   if (keyResult.issues.length) {
@@ -5338,6 +5424,7 @@ var $ZodSet = /* @__PURE__ */ $constructor("$ZodSet", (inst, def) => {
       return Promise.all(proms).then(() => payload);
     return payload;
   };
+  capSize(inst, setSize);
 });
 function handleSetResult(result, final) {
   if (result.issues.length) {
@@ -14868,9 +14955,15 @@ function generateNullableCheck(doc, ctx, schema, accessor, buildsValue = true) {
   doc.write(`}`);
   return outputVar;
 }
+function generateSizeGate(doc, schema, size) {
+  for (const [max, check2] of sizeCaps(schema._zod.def.checks)) {
+    doc.write(`if (${size} > ${numericOperand(max, check2._zod.def.check)}) return INVALID;`);
+  }
+}
 function generateArrayCheck(doc, ctx, schema, accessor, buildsValue = true) {
   const def = schema._zod.def;
   doc.write(`if (!Array.isArray(${accessor})) return INVALID;`);
+  generateSizeGate(doc, schema, `${accessor}.length`);
   const outputVar = buildsValue ? newVar(ctx) : null;
   const iVar = newVar(ctx);
   const elemVar = newVar(ctx);
@@ -15270,6 +15363,7 @@ function literalPropertyKey(ctx, key) {
 function generateMapCheck(doc, ctx, schema, accessor) {
   const def = schema._zod.def;
   doc.write(`if (!(${accessor} instanceof Map)) return INVALID;`);
+  generateSizeGate(doc, schema, `${accessor}.size`);
   const outputVar = newVar(ctx);
   const kVar = newVar(ctx);
   const valVar = newVar(ctx);
@@ -15286,6 +15380,7 @@ function generateMapCheck(doc, ctx, schema, accessor) {
 function generateSetCheck(doc, ctx, schema, accessor) {
   const def = schema._zod.def;
   doc.write(`if (!(${accessor} instanceof Set)) return INVALID;`);
+  generateSizeGate(doc, schema, `${accessor}.size`);
   const outputVar = newVar(ctx);
   const valVar = newVar(ctx);
   doc.write(`const ${outputVar} = new Set();`);
@@ -20603,6 +20698,17 @@ import { fileURLToPath } from "url";
 import crypto from "crypto";
 import { Resend } from "resend";
 
+// node_modules/dotenv/config.js
+(function() {
+  require_main().config(
+    Object.assign(
+      {},
+      require_env_options(),
+      require_cli_options()(process.argv)
+    )
+  );
+})();
+
 // src/db/index.ts
 import pg from "pg";
 import bcrypt from "bcryptjs";
@@ -20613,7 +20719,7 @@ var connectionString = !isPlaceholderUrl ? rawConnectionString : void 0;
 var isPostgres = Boolean(connectionString);
 if (isProduction && !isPostgres) {
   console.error("\u274C [CRITICAL PRODUCTION ERROR] No PostgreSQL connection string found in environment variables (DATABASE_URL / POSTGRES_URL).");
-  console.error("\u{1F449} In-memory mock database is strictly prohibited in production. Please configure DATABASE_URL in Vercel Project Settings > Environment Variables.");
+  console.error("\u{1F449} In-memory mock database is strictly prohibited in production. Please configure DATABASE_URL or POSTGRES_URL in Vercel Project Settings > Environment Variables.");
 }
 var mockState = {
   users: [],
@@ -21707,10 +21813,134 @@ async function initializeDatabase() {
         ALTER TABLE users ADD COLUMN IF NOT EXISTS driving_license VARCHAR(255);
         ALTER TABLE users ADD COLUMN IF NOT EXISTS citizenship_no VARCHAR(255);
         ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_index INTEGER DEFAULT 0;
+
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS brand VARCHAR(100);
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS model VARCHAR(100);
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS year INTEGER;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS type VARCHAR(50);
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS price_per_day NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS security_deposit NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS seats INTEGER DEFAULT 4;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS transmission VARCHAR(50) DEFAULT 'Manual';
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS fuel_type VARCHAR(50) DEFAULT 'Petrol';
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS is_electric BOOLEAN DEFAULT FALSE;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS self_drive BOOLEAN DEFAULT TRUE;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS with_driver BOOLEAN DEFAULT TRUE;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS is_popular BOOLEAN DEFAULT FALSE;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS availability_status VARCHAR(50) DEFAULT 'Available';
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS rating NUMERIC(3, 2) DEFAULT 5.0;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS review_count INTEGER DEFAULT 0;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT '/assets/images/fortuner_suv_1791105671393.jpg';
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS image_gallery TEXT[] DEFAULT ARRAY[]::TEXT[];
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS pickup_locations TEXT[] DEFAULT ARRAY['Kathmandu']::TEXT[];
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS slug VARCHAR(255);
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE RESTRICT;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS start_date DATE;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_date DATE;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS pickup_location VARCHAR(255);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS dropoff_location VARCHAR(255);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS self_drive BOOLEAN DEFAULT TRUE;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS has_driver BOOLEAN DEFAULT FALSE;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS base_amount NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS driver_amount NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS total_amount NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_method VARCHAR(100);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) DEFAULT 'Pending';
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending';
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS driving_license VARCHAR(255);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS citizenship_no VARCHAR(255);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS destination_location VARCHAR(255);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_receipt_url TEXT;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_transaction_id VARCHAR(255);
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_notes TEXT;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE bookings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE reviews ADD COLUMN IF NOT EXISTS booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL;
+        ALTER TABLE reviews ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+        ALTER TABLE reviews ADD COLUMN IF NOT EXISTS vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE CASCADE;
+        ALTER TABLE reviews ADD COLUMN IF NOT EXISTS rating INTEGER DEFAULT 5;
+        ALTER TABLE reviews ADD COLUMN IF NOT EXISTS comment TEXT DEFAULT '';
+        ALTER TABLE reviews ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor_id INTEGER;
+        ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor_email VARCHAR(255);
+        ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS action VARCHAR(255);
+        ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS resource VARCHAR(255);
+        ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details TEXT;
+        ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE favorites ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+        ALTER TABLE favorites ADD COLUMN IF NOT EXISTS vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE CASCADE;
+        ALTER TABLE favorites ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS subject VARCHAR(255);
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS message TEXT;
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'NEW';
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS ip_address VARCHAR(100);
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS admin_notes TEXT;
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
         ALTER TABLE locations ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
         ALTER TABLE locations ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
         ALTER TABLE locations ADD COLUMN IF NOT EXISTS operating_hours VARCHAR(100);
         ALTER TABLE locations ADD COLUMN IF NOT EXISTS description TEXT;
+        ALTER TABLE locations ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE locations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS document_type VARCHAR(50);
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS storage_key VARCHAR(255);
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS original_filename VARCHAR(255);
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100);
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS file_size INTEGER DEFAULT 0;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS verification_status VARCHAR(50) DEFAULT 'Pending';
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS verified_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS retention_until TIMESTAMP;
+        ALTER TABLE user_documents ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+
+        ALTER TABLE document_verification_history ADD COLUMN IF NOT EXISTS document_id INTEGER REFERENCES user_documents(id) ON DELETE CASCADE;
+        ALTER TABLE document_verification_history ADD COLUMN IF NOT EXISTS reviewer_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+        ALTER TABLE document_verification_history ADD COLUMN IF NOT EXISTS action VARCHAR(50);
+        ALTER TABLE document_verification_history ADD COLUMN IF NOT EXISTS reason TEXT;
+        ALTER TABLE document_verification_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS document_type VARCHAR(50);
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS handover_required BOOLEAN DEFAULT FALSE;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS handed_over_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS received_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS handover_at TIMESTAMP;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS returned_at TIMESTAMP;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS renter_acknowledgment BOOLEAN DEFAULT FALSE;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS staff_acknowledgment BOOLEAN DEFAULT FALSE;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS notes TEXT;
+        ALTER TABLE document_custody_records ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE;
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS agreement_version VARCHAR(50) DEFAULT 'v1.0-nepal-kyc';
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS accepted_ip VARCHAR(100);
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS confirm_identity_ownership BOOLEAN DEFAULT TRUE;
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS confirm_original_retention BOOLEAN DEFAULT TRUE;
+        ALTER TABLE rental_agreement_acceptances ADD COLUMN IF NOT EXISTS confirm_rental_terms BOOLEAN DEFAULT TRUE;
       `;
       await pool.query(ddlStatements);
       const countsRes = await pool.query(`
@@ -25190,7 +25420,11 @@ var startServer = async () => {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
   } else if (!process.env.VERCEL) {
-    const { createServer: createViteServer } = await import("vite");
+    const vitePackage = "vite";
+    const { createServer: createViteServer } = await import(
+      /* @vite-ignore */
+      vitePackage
+    );
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
