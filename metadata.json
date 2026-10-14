@@ -1,0 +1,6 @@
+{
+  "name": "NepalDrive",
+  "description": "Premium vehicle rental platform in Nepal. Hire cars, SUVs, Jeeps, and bikes in Kathmandu, Pokhara, and major cities with secure bookings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,95 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-mono: "Space Mono", monospace;
+
+  /* Custom Nepal earth tones */
+  --color-crimson-50: #fef2f3;
+  --color-crimson-100: #fde2e4;
+  --color-crimson-200: #fbcacf;
+  --color-crimson-300: #f7a3ab;
+  --color-crimson-400: #f2727f;
+  --color-crimson-500: #9e2a2b; /* Crimson flag color, rich & elegant */
+  --color-crimson-600: #851c1e;
+  --color-crimson-700: #6e1416;
+  --color-crimson-800: #5c1113;
+  --color-crimson-900: #4e1214;
+
+  --color-terracotta-50: #fbf6f1;
+  --color-terracotta-100: #f6e9de;
+  --color-terracotta-200: #ebd0bc;
+  --color-terracotta-300: #dbad92;
+  --color-terracotta-400: #c68366;
+  --color-terracotta-500: #b56544; /* Terracotta pottery tone */
+  --color-terracotta-600: #a45339;
+  --color-terracotta-700: #89412e;
+
+  --color-himalaya-50: #f0f7fc;
+  --color-himalaya-100: #dfedf7;
+  --color-himalaya-200: #b6d5ee;
+  --color-himalaya-300: #8bbce5;
+  --color-himalaya-400: #559dd7;
+  --color-himalaya-500: #307ebd; /* Himalayan blue */
+  --color-himalaya-600: #21629c;
+  --color-himalaya-700: #1c4f7f;
+
+  --color-moss-50: #f4f7f4;
+  --color-moss-100: #e4ebe4;
+  --color-moss-200: #ccd8cb;
+  --color-moss-300: #a7bca6;
+  --color-moss-400: #7c9b7b;
+  --color-moss-500: #597d58; /* Muted green of the lower hills */
+  --color-moss-600: #456244;
+  --color-moss-700: #374f36;
+}
+
+/* Base custom focus styles */
+*:focus-visible {
+  outline: 2px solid var(--color-crimson-500);
+  outline-offset: 2px;
+}
+
+/* Custom layout helper for clean spatial grids */
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+  .bento-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 1rem;
+  }
+}
+
+/* Leaflet Custom Popup Styling */
+.leaflet-popup-content-wrapper {
+  border-radius: 1rem !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid #e7e5e4 !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: 1.5 !important;
+  font-family: inherit !important;
+}
+
+.leaflet-container {
+  font-family: inherit !important;
+  z-index: 10;
+}
+
+/* Custom Nepal Hub Marker Pulse */
+.custom-hub-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
