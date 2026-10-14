@@ -1,13 +1,12 @@
 
 import type { Request, Response } from "express";
-import app, { ensureDbInitialized } from "../server";
+import app from "../server.js";
 
 export default async function handler(
   req: Request,
   res: Response
 ) {
   try {
-    await ensureDbInitialized();
     return app(req, res);
   } catch (error) {
     console.error(

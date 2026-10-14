@@ -25458,10 +25458,6 @@ if (isRunningDirectly) {
   startServer().catch((err) => {
     console.error("\u274C Server startup failed:", err);
   });
-} else {
-  ensureDbInitialized().catch((err) => {
-    console.warn("Serverless DB initialization notice:", err.message);
-  });
 }
 var server_default = app;
 export {

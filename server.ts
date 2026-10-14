@@ -3409,11 +3409,6 @@ if (isRunningDirectly) {
   startServer().catch(err => {
     console.error('❌ Server startup failed:', err);
   });
-} else {
-  // Running in serverless mode (e.g. Vercel) or imported as module
-  ensureDbInitialized().catch(err => {
-    console.warn('Serverless DB initialization notice:', err.message);
-  });
 }
 
 export default app;
