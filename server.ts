@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import { Resend } from 'resend';
 import "dotenv/config";
-import { dbQuery, initializeDatabase, initialLocations, getDatabaseDiagnostics, isPostgres, isProduction } from './src/db/index';
+import { dbQuery, initializeDatabase, initialLocations, getDatabaseDiagnostics, isPostgres, isProduction } from './src/db/index.ts';
 
 dotenv.config();
 
