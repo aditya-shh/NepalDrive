@@ -5,11 +5,11 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import dotenv from 'dotenv';
 import path from 'path';
-import "dotenv/config";
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import { Resend } from 'resend';
+import "dotenv/config";
 import { dbQuery, initializeDatabase, initialLocations, getDatabaseDiagnostics, isPostgres, isProduction } from './src/db/index';
 
 dotenv.config();
@@ -3366,8 +3366,9 @@ const startServer = async () => {
       res.sendFile(path.join(__dirname, 'dist', 'index.html'));
     });
   } else if (!process.env.VERCEL) {
-    // Development server with Vite integration
-    const { createServer: createViteServer } = await import('vite');
+    // Development server with Vite integration (dynamically imported to prevent bundling in serverless)
+    const vitePackage = 'vite';
+    const { createServer: createViteServer } = await import(/* @vite-ignore */ vitePackage);
     const vite = await createViteServer({
       server: {
         middlewareMode: true,

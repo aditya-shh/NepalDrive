@@ -42,7 +42,13 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   }
 
   if (!response.ok) {
-    const errorMsg = data?.message || `API request failed with status ${response.status} (${response.statusText})`;
+    const errorMsg =
+      data?.message ||
+      (typeof data?.error === 'string' ? data.error : data?.error?.message) ||
+      (response.status === 500
+        ? 'Backend service encountered a server error. If this is a new Vercel deployment, please check DATABASE_URL in Vercel Project Settings.'
+        : `API request failed with status ${response.status}${response.statusText ? ` (${response.statusText})` : ''}`);
+
     const error: any = new Error(errorMsg);
     error.status = response.status;
     error.data = data;
